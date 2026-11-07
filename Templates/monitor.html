@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Libtrack Scanner</title>
+</head>
+<body>
+    <h1>Libtrack Scanner</h1>
+
+    <video
+        id="camera"
+        width="320"
+        autoplay
+        muted
+        playsinline
+        style="width: 320px; max-width: 100%; background: #222;"></video>
+
+    <div>
+        <button id="startBtn" type="button">Start Camera</button>
+        <button id="stopBtn" type="button" disabled>Stop Camera</button>
+    </div>
+
+    <p id="status">Camera is off.</p>
+
+    <h2>Visitors Today (<span id="count">0</span>)</h2>
+    <ul id="visitorList"></ul>
+
+    <canvas id="canvas" hidden></canvas>
+
+    <script src="/static/scanner.js"></script>
+</body>
+</html>

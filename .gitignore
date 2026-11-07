@@ -1,0 +1,14 @@
+.env
+.env.*
+
+!.env.example
+
+Libtrack/
+venv/
+.venv/
+
+__pycache__/
+*.pyc
+
+.vscode/
+id_sample.jpg

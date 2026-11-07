@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+jinja2
+sqlalchemy
+psycopg2-binary
+pydantic-settings
+pwdlib[argon2]
+pyjwt
+pydantic[email]
+python-multipart
+pillow
+pandas
+matplotlib
+numpy
+openpyxl
+bcrypt
