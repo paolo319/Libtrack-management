@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Libtrack Scanner</title>
+</head>
+<body>
+    <h1>Libtrack Scanner</h1>
+    <a href="monitor">Student</a>
+    <a href="monitorDashboard">Duty</a>
+    <p>{{ area }} &middot; {{ school }}</p>
+    <p id="todayDate"></p>
+
+    <div style="width: 480px; max-width: 100%; border: 2px solid #222; background: #222;">
+        <video
+            id="camera"
+            autoplay
+            muted
+            playsinline
+            style="display: block; width: 100%;"></video>
+    </div>
+
+    <div>
+        <button id="startBtn" type="button">Start Camera</button>
+        <button id="stopBtn" type="button" disabled>Stop Camera</button>
+    </div>
+
+    <div>
+        <label><input type="radio" name="mode" value="auto" checked> Automatic</label>
+        <label><input type="radio" name="mode" value="manual"> Manual</label>
+    </div>
+
+    <div>
+        <button id="scanBtn" type="button" disabled>Scan Now</button>
+    </div>
+
+    <div>
+        <input id="manualId" type="text" placeholder="00-0000-000000" maxlength="15" inputmode="numeric">
+        <button id="recordBtn" type="button">Record</button>
+    </div>
+
+    <p id="status">Camera is off.</p>
+
+    <h2>Visitors Today (<span id="count">0</span>)</h2>
+    <ul id="visitorList"></ul>
+
+    <canvas id="canvas" hidden></canvas>
+
+    <script src="/static/scanner.js"></script>
+</body>
+</html>

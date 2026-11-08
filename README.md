@@ -1,2 +1,0 @@
-# Libtrack
-Libtrack Management

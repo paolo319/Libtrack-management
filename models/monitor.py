@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, text, Enum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 from models.schools import School
 
@@ -13,4 +13,4 @@ class Monitor(Base):
     password: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text('now()'))
 
-    
+    visitors = relationship("Visitor", back_populates="monitor")
