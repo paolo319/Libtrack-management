@@ -3,11 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Duty Monitor</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 24px;
+            color: #1f2933;
+        }
+        nav {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        nav a {
+            color: #0b6bcb;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+        .header img {
+            height: 48px;
+            width: auto;
+            max-width: 100%;
+            object-fit: contain;
+        }
+        .header p {
+            margin: 0;
+            color: #52606d;
+        }
+        .duty-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .duty-card {
+            border: 1px solid #d9e2ec;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+        .duty-photo {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #f0f4f8;
+        }
+        .duty-name {
+            margin: 12px 0 8px;
+            font-size: 1.05rem;
+        }
+        .duty-time {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.92rem;
+            padding: 4px 0;
+            border-top: 1px solid #eef2f6;
+        }
+        .duty-time-label {
+            color: #52606d;
+        }
+        .duty-time-value {
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+        .duty-empty {
+            color: #52606d;
+        }
+    </style>
 </head>
 <body>
-    <a href="monitorDashboard">Duty</a>
-    <a href="monitor">Student</a>
-    
+    <nav>
+        <a href="/dutyDashboard">Duty</a>
+        <a href="/monitor">Student</a>
+    </nav>
+
+    <div class="header">
+        {% if school_logo %}<img src="{{ school_logo }}" alt="{{ school }}" onerror="this.src='/static/logos/default.svg'">{% endif %}
+        <div>
+            <h1 style="margin: 0;">Duty Monitor</h1>
+            <p>{{ area }}{% if school %} &middot; {{ school }}{% endif %}</p>
+        </div>
+    </div>
+
+    <p id="todayDate"></p>
+    <h2>Duty Today (<span id="count">0</span>)</h2>
+    <div id="dutyGrid" class="duty-grid"></div>
+
+    <p id="status"></p>
+
+    <script src="/static/dutyScanner.js"></script>
 </body>
 </html>

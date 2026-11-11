@@ -1,4 +1,4 @@
-from sqlalchemy import String, Enum
+from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -13,5 +13,8 @@ class Student(Base):
     school_id: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     course: Mapped[str] = mapped_column(String, nullable=False)
     year_level: Mapped[str] = mapped_column(String, nullable=False)
-    school: Mapped[School] = mapped_column(Enum(School), nullable=False, index=True)
+    institution_id: Mapped[int] = mapped_column(
+        ForeignKey("schools.id"), nullable=False, index=True
+    )
     visitors = relationship("Visitor", back_populates="student")
+    school: Mapped[School] = relationship("School", back_populates="students")

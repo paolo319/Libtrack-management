@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="64" viewBox="0 0 128 64" role="img" aria-label="Institution logo">
+  <rect width="128" height="64" rx="8" fill="#1f3a5f"/>
+  <path d="M22 44V22l42-12 42 12v22l-42 12z" fill="#f2c94c"/>
+  <path d="M22 30l42-12 42 12-42 12z" fill="#ffffff"/>
+  <text x="64" y="56" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#ffffff">SCHOOL</text>
+</svg>

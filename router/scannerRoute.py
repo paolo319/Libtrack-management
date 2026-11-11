@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 from time import monotonic
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -8,6 +9,14 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Monitor, Student, Visitor
 from ocr import read_id
+from schemas import (
+    ImageScan,
+    ManualScan,
+    ScanResult,
+    StudentRead,
+    VisitorRead,
+    VisitorsToday,
+)
 
 router = APIRouter(prefix="/api", tags=["scanner"])
 
@@ -29,17 +38,24 @@ def _monitor(request: Request, db: Session) -> Monitor:
     return monitor
 
 
-def _student_dict(student: Student) -> dict:
-    return {
-        "fullname": student.fullname,
-        "school_id": student.school_id,
-        "course": student.course,
-        "year_level": student.year_level,
-        "school": student.school.value,
-    }
+def _student_read(student: Student) -> StudentRead:
+    return StudentRead(
+        fullname=student.fullname,
+        school_id=student.school_id,
+        course=student.course,
+        year_level=student.year_level,
+        school=student.school.name,
+    )
 
 
-def visitors_today(db: Session, monitor_id: int) -> list[dict]:
+def _visitor_read(visit: Visitor, student: Student) -> VisitorRead:
+    return VisitorRead(
+        **_student_read(student).model_dump(),
+        time_in=visit.time_in,
+    )
+
+
+def visitors_today(db: Session, monitor_id: int) -> list[VisitorRead]:
     """Visits recorded for this monitor during the current local day."""
     start = datetime.combine(date.today(), time.min).astimezone()
     end = start + timedelta(days=1)
@@ -57,15 +73,18 @@ def visitors_today(db: Session, monitor_id: int) -> list[dict]:
     )
 
     return [
-        {**_student_dict(student), "time_in": visit.time_in.isoformat()}
+        _visitor_read(visit, student)
         for visit, student in rows
     ]
 
 
-def record_visit(db: Session, monitor: Monitor, identifier: str) -> dict:
+def record_visit(db: Session, monitor: Monitor, identifier: str) -> ScanResult:
     student = (
         db.query(Student)
-        .filter(Student.school_id == identifier, Student.school == monitor.school)
+        .filter(
+            Student.school_id == identifier,
+            Student.institution_id == monitor.school_id,
+        )
         .first()
     )
 
@@ -73,45 +92,45 @@ def record_visit(db: Session, monitor: Monitor, identifier: str) -> dict:
         # The ID may exist, but at a different school.
         other = db.query(Student).filter(Student.school_id == identifier).first()
         if other is not None:
-            return {
-                "status": "wrong_school",
-                "id": identifier,
-                "school": other.school.value,
-                "message": f"This ID belongs to {other.school.value}.",
-            }
-        return {"status": "not_found", "id": identifier}
+            return ScanResult(
+                status="wrong_school",
+                id=identifier,
+                school=other.school.name,
+                message=f"This ID belongs to {other.school.name}.",
+            )
+        return ScanResult(status="not_found", id=identifier)
 
     visit = Visitor(student_id=student.id, monitor_id=monitor.id)
     db.add(visit)
     db.commit()
     db.refresh(visit)
 
-    return {
-        "status": "ok",
-        "student": _student_dict(student),
-        "time_in": visit.time_in.isoformat(),
-    }
+    return ScanResult(
+        status="ok",
+        student=_student_read(student),
+        time_in=visit.time_in,
+    )
 
 
-@router.get("/visitors/today")
+@router.get("/visitors/today", response_model=VisitorsToday)
 def get_visitors_today(
     request: Request,
     db: Session = Depends(get_db),
 ):
     monitor = _monitor(request, db)
     visitors = visitors_today(db, monitor.id)
-    return {
-        "date": datetime.now().date().isoformat(),
-        "count": len(visitors),
-        "visitors": visitors,
-    }
+    return VisitorsToday(
+        date=datetime.now().date().isoformat(),
+        count=len(visitors),
+        visitors=visitors,
+    )
 
 
-@router.post("/scan/image")
+@router.post("/scan/image", response_model=ScanResult, response_model_exclude_none=True)
 async def scan_image(
     request: Request,
     image: UploadFile = File(...),
-    mode: str = Form("auto"),
+    form: Annotated[ImageScan, Form()] = ImageScan(),
     db: Session = Depends(get_db),
 ):
     monitor = _monitor(request, db)
@@ -119,36 +138,39 @@ async def scan_image(
     data = await image.read()
     identifier = await run_in_threadpool(read_id, data)
     if identifier is None:
-        return {"status": "unrecognized", "message": "No student ID found in the image."}
+        return ScanResult(
+            status="unrecognized",
+            message="No student ID found in the image.",
+        )
 
-    if mode == "auto":
+    if form.mode == "auto":
         key = (monitor.id, identifier)
         now = monotonic()
         if now - _recent.get(key, 0) < DEBOUNCE_SECONDS:
-            return {
-                "status": "duplicate",
-                "id": identifier,
-                "message": "Already recorded a moment ago.",
-            }
+            return ScanResult(
+                status="duplicate",
+                id=identifier,
+                message="Already recorded a moment ago.",
+            )
         _recent[key] = now
 
     result = record_visit(db, monitor, identifier)
-    result["visitors"] = visitors_today(db, monitor.id)
+    result.visitors = visitors_today(db, monitor.id)
     return result
 
 
-@router.post("/scan/manual")
+@router.post("/scan/manual", response_model=ScanResult, response_model_exclude_none=True)
 def scan_manual(
     request: Request,
-    id: str = Form(...),
+    form: Annotated[ManualScan, Form()],
     db: Session = Depends(get_db),
 ):
     monitor = _monitor(request, db)
 
-    identifier = id.strip()
+    identifier = form.identifier.strip()
     if not identifier.replace("-", "").isdigit():
-        return {"status": "invalid", "message": "Use the format 00-0000-000000."}
+        return ScanResult(status="invalid", message="Use the format 00-0000-000000.")
 
     result = record_visit(db, monitor, identifier)
-    result["visitors"] = visitors_today(db, monitor.id)
+    result.visitors = visitors_today(db, monitor.id)
     return result

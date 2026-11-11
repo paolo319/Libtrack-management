@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     algorithm: str
     access_token_expire_minutes: int
 
+    # Duty RFID bridge (device token is scoped to duty scanning only).
+    duty_bridge_token: str | None = None
+    duty_monitor_id: int | None = None
+    duty_rate_limit_per_minute: int = 60
+
     # class Config:
     #     env_file = ".env"
     model_config = SettingsConfigDict(

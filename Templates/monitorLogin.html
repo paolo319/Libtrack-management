@@ -14,7 +14,7 @@
         <select name="userSchool" required>
             <option value="">Select School</option>
             {% for school in schools %}
-            <option value="{{ school.name }}">{{ school.label }}</option>
+            <option value="{{ school.code }}">{{ school.name }}</option>
             {% endfor %}
         </select>
         <label>Password</label>

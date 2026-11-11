@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
 from models import HeadAdmin  
+from schemas import HeadAdminLogin
 
 
 app = FastAPI()
@@ -25,13 +26,12 @@ def login_page(request: Request):
 @app.post("/libtrack")
 def login(
     request: Request,
-    userEmail: Annotated[str, Form()],
-    password: Annotated[str, Form()],
+    form: Annotated[HeadAdminLogin, Form()],
     db: Session = Depends(get_db),
 ):
-    head = db.query(HeadAdmin).filter(HeadAdmin.email == userEmail).first()
+    head = db.query(HeadAdmin).filter(HeadAdmin.email == form.email).first()
 
-    if head and head.password == password:
+    if head and head.password == form.password:
         return RedirectResponse(url= "/headDashboard", status_code=303)
         
 
