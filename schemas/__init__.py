@@ -1,5 +1,6 @@
 from .admin import AdminLogin
 from .duty import (
+    DutyEvent,
     DutyPerson,
     DutyRecordRead,
     DutyScan,
@@ -19,6 +20,7 @@ from .scan import (
 
 __all__ = [
     "AdminLogin",
+    "DutyEvent",
     "DutyPerson",
     "DutyRecordRead",
     "DutyScan",

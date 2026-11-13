@@ -14,7 +14,7 @@ from models import Monitor, School
 from router.dutyRoute import router as duty_router
 from router.scannerRoute import router as scanner_router
 from schemas import MonitorLogin
-
+ #python.exe -m uvicorn --app-dir "Monitoring Scanner" libtrack:app --reload
 app = FastAPI()
 app.add_middleware(
     SessionMiddleware, secret_key=settings.secret_key, same_site="strict"

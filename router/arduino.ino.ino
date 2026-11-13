@@ -6,6 +6,7 @@
 
 #define SS_PIN 10
 #define RST_PIN 9
+#define BUZZER_PIN 8
 
 // LCD address: 0x27, 16 columns, 2 rows
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -19,6 +20,10 @@ void setup() {
     // Initialize LCD
     lcd.init();
     lcd.backlight();
+
+    // Initialize buzzer
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
 
     lcd.setCursor(0, 0);
     lcd.print("LIBTRACK SYSTEM");
@@ -49,6 +54,9 @@ void loop() {
         return;
     }
 
+    // Beep when card is successfully detected
+    tone(BUZZER_PIN, 2000, 150);
+
     // Display card detected
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -64,10 +72,6 @@ void loop() {
 
         if (rfid.uid.uidByte[i] < 0x10) {
             cardUID += "0";
-        }
-
-        if (i > 0) {
-            // No separator between UID bytes
         }
 
         String hexValue = String(rfid.uid.uidByte[i], HEX);

@@ -6,12 +6,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from config import settings
 from database import get_db
 from models import Duty, DutyRecord, Monitor
-from schemas import DutyPerson, DutyRecordRead, DutyScan, DutyScanResult, DutyToday
+from schemas import (
+    DutyEvent,
+    DutyPerson,
+    DutyRecordRead,
+    DutyScan,
+    DutyScanResult,
+    DutyToday,
+)
 
 router = APIRouter(prefix="/api/duty", tags=["duty"])
 
@@ -20,6 +27,7 @@ TIME_OUT_COOLDOWN = timedelta(hours=1)
 MIN_RFID_LENGTH = 4
 MAX_RFID_LENGTH = 64
 HEX_DIGITS = set("0123456789ABCDEF")
+MIN_DEVICE_TOKEN_LENGTH = 32
 RATE_WINDOW_SECONDS = 60
 _recent_scans: dict[int, deque[float]] = {}
 
@@ -48,7 +56,7 @@ def _device_monitor(request: Request, db: Session) -> Monitor:
     """Authenticate the RFID bridge with its scoped device token."""
     token = settings.duty_bridge_token
     monitor_id = settings.duty_monitor_id
-    if not token or monitor_id is None:
+    if not token or len(token) < MIN_DEVICE_TOKEN_LENGTH or monitor_id is None:
         raise HTTPException(status_code=401, detail="Duty bridge is not configured.")
 
     provided = request.headers.get("x-duty-token", "")
@@ -102,7 +110,12 @@ def _find_duty(db: Session, monitor: Monitor, uid: str) -> Duty | None:
 
 
 def _person(duty: Duty) -> DutyPerson:
-    return DutyPerson(fullname=duty.fullname, logo_url=duty.logo_url)
+    return DutyPerson(
+        fullname=duty.fullname,
+        course=duty.course,
+        year_level=duty.year_level,
+        logo_url=duty.logo_url,
+    )
 
 
 def _record_read(record: DutyRecord) -> DutyRecordRead:
@@ -114,9 +127,17 @@ def _record_read(record: DutyRecord) -> DutyRecordRead:
     )
 
 
+def _latest_activity(record: DutyRecordRead) -> datetime:
+    """The most recent action on a record: time-out if present, else time-in."""
+    if record.time_out is None:
+        return _aware(record.time_in)
+    return max(_aware(record.time_in), _aware(record.time_out))
+
+
 def _today_records(db: Session, monitor: Monitor) -> list[DutyRecordRead]:
     rows = (
         db.query(DutyRecord)
+        .options(joinedload(DutyRecord.duty))
         .join(Duty)
         .filter(
             Duty.school_id == monitor.school_id,
@@ -125,7 +146,25 @@ def _today_records(db: Session, monitor: Monitor) -> list[DutyRecordRead]:
         .order_by(DutyRecord.time_in.desc())
         .all()
     )
-    return [_record_read(record) for record in rows]
+    records = [_record_read(record) for record in rows]
+    # Whoever scanned most recently is shown first.
+    records.sort(key=_latest_activity, reverse=True)
+    return records
+
+
+def _today_events(records: list[DutyRecordRead]) -> list[DutyEvent]:
+    """Flatten today's records into newest-first sign-in/sign-out events."""
+    events: list[DutyEvent] = []
+    for record in records:
+        events.append(
+            DutyEvent(kind="time_in", at=record.time_in, person=record.person)
+        )
+        if record.time_out is not None:
+            events.append(
+                DutyEvent(kind="time_out", at=record.time_out, person=record.person)
+            )
+    events.sort(key=lambda event: _aware(event.at), reverse=True)
+    return events
 
 
 def _cooldown_message(remaining: timedelta) -> str:
@@ -229,6 +268,7 @@ def get_today(
         date=_today().isoformat(),
         count=len(records),
         records=records,
+        events=_today_events(records),
     )
 
 

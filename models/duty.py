@@ -38,12 +38,6 @@ class Duty(Base):
 
     @property
     def logo_url(self) -> str:
-        """Resolve this duty record's photo, else the default image.
-
-        `logo_filename` refers to a file in `static/pp`. The bare file name is
-        used (directories are stripped) so the value cannot escape that folder.
-        The extension is optional: `Abird` and `Abird.jpg` both resolve.
-        """
         available = {}
         if PP_DIR.is_dir():
             available = {

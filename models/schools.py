@@ -18,8 +18,7 @@ class School(Base):
     name: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
     logo_filename: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="true"
-    )
+        Boolean, nullable=False, default=True, server_default="true")
 
     admins = relationship("Admin", back_populates="school")
     monitors = relationship("Monitor", back_populates="school")
@@ -28,12 +27,6 @@ class School(Base):
 
     @property
     def logo_url(self) -> str:
-        """Resolve the school logo to an existing file, else the default.
-
-        Checks `logo_filename` first, then `<code>.<ext>` for the known
-        extensions. Matching is case-insensitive so the URL always points at
-        the file's real name on disk.
-        """
         base = self.code.lower()
         candidates = []
         if self.logo_filename:
