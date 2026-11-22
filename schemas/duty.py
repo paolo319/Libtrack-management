@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 
 class DutyPerson(BaseModel):
-    """Public duty identity exposed to the dashboard. No RFID, ever."""
 
     fullname: str
     course: str

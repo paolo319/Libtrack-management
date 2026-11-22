@@ -22,12 +22,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Duty RFID bridge (device token is scoped to duty scanning only).
-    duty_bridge_token: str | None = None
-    duty_monitor_id: int | None = None
+    # Duty scan rate limit.
     duty_rate_limit_per_minute: int = 60
-    duty_api_url: str = "http://127.0.0.1:8000"
-    duty_serial_port: str = "COM4"
-    duty_serial_baud: int = 9600
 
 settings = Settings()

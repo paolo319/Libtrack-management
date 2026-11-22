@@ -17,4 +17,3 @@ bcrypt
 rapidocr
 onnxruntime
 itsdangerous
-pyserial

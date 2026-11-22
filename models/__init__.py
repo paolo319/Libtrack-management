@@ -6,6 +6,7 @@ from .monitor import Monitor
 from .schools import School
 from .student import Student
 from .visitor import Visitor
+from .trackRecord import TrackRecord
 
 __all__ = [
     "Admin",
@@ -16,4 +17,5 @@ __all__ = [
     "School",
     "Student",
     "Visitor",
+    "TrackRecord"
 ]

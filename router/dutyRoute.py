@@ -1,4 +1,3 @@
-import secrets
 from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from time import monotonic
@@ -27,7 +26,6 @@ TIME_OUT_COOLDOWN = timedelta(hours=1)
 MIN_RFID_LENGTH = 4
 MAX_RFID_LENGTH = 64
 HEX_DIGITS = set("0123456789ABCDEF")
-MIN_DEVICE_TOKEN_LENGTH = 32
 RATE_WINDOW_SECONDS = 60
 _recent_scans: dict[int, deque[float]] = {}
 
@@ -52,26 +50,8 @@ def _monitor(request: Request, db: Session) -> Monitor:
     return monitor
 
 
-def _device_monitor(request: Request, db: Session) -> Monitor:
-    """Authenticate the RFID bridge with its scoped device token."""
-    token = settings.duty_bridge_token
-    monitor_id = settings.duty_monitor_id
-    if not token or len(token) < MIN_DEVICE_TOKEN_LENGTH or monitor_id is None:
-        raise HTTPException(status_code=401, detail="Duty bridge is not configured.")
-
-    provided = request.headers.get("x-duty-token", "")
-    if not secrets.compare_digest(provided, token):
-        raise HTTPException(status_code=401, detail="Invalid device token.")
-
-    monitor = db.get(Monitor, monitor_id)
-    if monitor is None:
-        raise HTTPException(status_code=401, detail="Duty bridge monitor not found.")
-
-    return monitor
-
-
 def _check_rate_limit(monitor: Monitor) -> None:
-    """Sliding-window limit for scans coming from the device token."""
+    """Sliding-window limit for duty scans."""
     limit = settings.duty_rate_limit_per_minute
     if limit <= 0:
         return
@@ -272,17 +252,15 @@ def get_today(
     )
 
 
-@router.post(
-    "/scan/device", response_model=DutyScanResult, response_model_exclude_none=True
-)
-def scan_device(
+@router.post("/scan", response_model=DutyScanResult, response_model_exclude_none=True)
+def scan(
     request: Request,
     response: Response,
     form: Annotated[DutyScan, Form()],
     db: Session = Depends(get_db),
 ):
-    """The only way to create a duty record: the token-scoped RFID bridge."""
-    monitor = _device_monitor(request, db)
+    """Record a duty scan from the logged-in monitor's browser session."""
+    monitor = _monitor(request, db)
     _check_rate_limit(monitor)
     result = _scan(db, monitor, form.rfid)
     response.headers["Cache-Control"] = "no-store"

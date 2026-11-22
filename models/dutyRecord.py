@@ -31,3 +31,4 @@ class DutyRecord(Base):
     )
 
     duty = relationship("Duty", back_populates="records")
+    track_records = relationship("TrackRecord", back_populates="duty_record")

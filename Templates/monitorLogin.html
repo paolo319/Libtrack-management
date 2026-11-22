@@ -1,28 +1,23 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation</title>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Libtrack Monitor Login</title>
+  </head>
+  <body>
     <h1>Libtrack Management</h1>
-    <form action="login" method="post">
-        <label>Area</label>
-        <input type="text" name="userArea" placeholder="Area" required>
-        <label>School</label>
-        <select name="userSchool" required>
-            <option value="">Select School</option>
-            {% for school in schools %}
-            <option value="{{ school.code }}">{{ school.name }}</option>
-            {% endfor %}
-        </select>
-        <label>Password</label>
-        <input type="password" name="password" placeholder="Password" required>
-        <button class="btn" type="submit">login</button>
+    <form action="/login" method="post">
+      <label>Area</label>
+      <input type="text" name="userArea" placeholder="Area" required />
+      <label>Email</label>
+      <input type="email" name="userEmail" placeholder="Email" required />
+      <label>Password</label>
+      <input type="password" name="password" placeholder="Password" required />
+      <button class="btn" type="submit">login</button>
     </form>
     {% if error %}
-    <p style="color: #b00020;">{{ error }}</p>
+    <p style="color: #b00020">{{ error }}</p>
     {% endif %}
-</body>
+  </body>
 </html>

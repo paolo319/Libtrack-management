@@ -60,23 +60,15 @@ def visitors_today(db: Session, monitor_id: int) -> list[VisitorRead]:
     start = datetime.combine(date.today(), time.min).astimezone()
     end = start + timedelta(days=1)
 
-    rows = (
-        db.query(Visitor, Student)
-        .join(Student)
-        .filter(
-            Visitor.monitor_id == monitor_id,
-            Visitor.time_in >= start,
-            Visitor.time_in < end,
-        )
-        .order_by(Visitor.time_in.desc())
-        .all()
-    )
+    rows = (db.query(Visitor, Student)
+            .join(Student)
+            .filter(Visitor.monitor_id == monitor_id, Visitor.time_in >= start, Visitor.time_in < end,)
+            .order_by(Visitor.time_in.desc()).all())
 
     return [
         _visitor_read(visit, student)
         for visit, student in rows
     ]
-
 
 def record_visit(db: Session, monitor: Monitor, identifier: str) -> ScanResult:
     student = (
@@ -129,7 +121,7 @@ def get_visitors_today(
 @router.post("/scan/image", response_model=ScanResult, response_model_exclude_none=True)
 async def scan_image(
     request: Request,
-    image: UploadFile = File(...),
+    image: UploadFile = File(None),
     form: Annotated[ImageScan, Form()] = ImageScan(),
     db: Session = Depends(get_db),
 ):

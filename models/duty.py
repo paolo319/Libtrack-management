@@ -29,13 +29,12 @@ class Duty(Base):
     year_level: Mapped[str] = mapped_column(String(50), nullable=False)
     monitor = relationship("Monitor", back_populates="duties")
     school: Mapped[School] = relationship("School", back_populates="duties")
-    records = relationship(
-        "DutyRecord",
+    records = relationship("DutyRecord",
         back_populates="duty",
         cascade="all, delete-orphan",
         order_by="DutyRecord.time_in",
     )
-
+    
     @property
     def logo_url(self) -> str:
         available = {}

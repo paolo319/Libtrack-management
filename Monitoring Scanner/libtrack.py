@@ -10,11 +10,10 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from config import settings
 from database import Base, engine, get_db
-from models import Monitor, School
+from models import Monitor
 from router.dutyRoute import router as duty_router
 from router.scannerRoute import router as scanner_router
 from schemas import MonitorLogin
- #python.exe -m uvicorn --app-dir "Monitoring Scanner" libtrack:app --reload
 app = FastAPI()
 app.add_middleware(
     SessionMiddleware, secret_key=settings.secret_key, same_site="strict"
@@ -28,38 +27,17 @@ templates = Jinja2Templates(directory="Templates")
 Base.metadata.create_all(bind=engine)
 
 
-def find_school(db: Session, text: str) -> School | None:
-    text = text.strip().lower()
-    return (
-        db.query(School)
-        .filter(
-            (func.lower(School.code) == text) | (func.lower(School.name) == text)
-        )
-        .first()
-    )
-
-
-def login_context(db: Session, error: str | None = None) -> dict:
-    schools = (
-        db.query(School)
-        .filter(School.is_active.is_(True))
-        .order_by(School.name)
-        .all()
-    )
-    return {"schools": schools, "error": error}
-
-
 @app.get("/")
 def landing_page(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
 
 @app.get("/login")
-def login_page(request: Request, db: Session = Depends(get_db)):
+def login_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="monitorLogin.html",
-        context=login_context(db),
+        context={"error": None},
     )
 
 
@@ -69,18 +47,22 @@ def login(
     form: Annotated[MonitorLogin, Form()],
     db: Session = Depends(get_db),
 ):
-    school = find_school(db, form.school)
-    monitor = None
-    if school is not None:
-        monitor = (
-            db.query(Monitor)
-            .filter(Monitor.area == form.area, Monitor.school_id == school.id)
-            .first()
+    area = form.area.strip().lower()
+    email = str(form.email).strip().lower()
+
+    monitor = (
+        db.query(Monitor)
+        .filter(
+            func.lower(Monitor.area) == area,
+            func.lower(Monitor.email) == email,
         )
+        .first()
+    )
 
     if monitor and monitor.password == form.password:
         request.session["monitor_id"] = monitor.id
         request.session["area"] = monitor.area
+        request.session["monitor"] = monitor.email
         request.session["school"] = monitor.school.name
         request.session["school_logo"] = monitor.school.logo_url
         return RedirectResponse(url="/monitor", status_code=303)
@@ -88,7 +70,7 @@ def login(
     return templates.TemplateResponse(
         request=request,
         name="monitorLogin.html",
-        context=login_context(db, "Invalid area, institution, or password."),
+        context={"error": "Invalid area, email, or password."},
     )
 
 
