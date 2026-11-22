@@ -18,6 +18,20 @@ app = FastAPI()
 app.add_middleware(
     SessionMiddleware, secret_key=settings.secret_key, same_site="strict"
 )
+
+
+@app.middleware("http")
+async def cache_headers(request: Request, call_next):
+    """Keep JS/CSS fresh and never cache the kiosk HTML pages."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith((".js", ".css")):
+        response.headers["Cache-Control"] = "no-cache"
+    elif path in {"/", "/login", "/monitor", "/dutyDashboard"}:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(scanner_router)
 app.include_router(duty_router)

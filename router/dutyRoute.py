@@ -1,7 +1,14 @@
+"""Duty kiosk API: today's board and one-tap card scans.
+
+The monitor's identity comes only from the server session. Duty lookups are
+scoped to that monitor's school, and card UIDs are never returned.
+"""
+
 from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from time import monotonic
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from sqlalchemy.exc import IntegrityError
@@ -21,11 +28,9 @@ from schemas import (
 
 router = APIRouter(prefix="/api/duty", tags=["duty"])
 
-# A duty member must stay at least this long before they can time out.
 TIME_OUT_COOLDOWN = timedelta(hours=1)
-MIN_RFID_LENGTH = 4
-MAX_RFID_LENGTH = 64
-HEX_DIGITS = set("0123456789ABCDEF")
+MIN_UID_LENGTH, MAX_UID_LENGTH = 4, 64
+HEX_DIGITS = frozenset("0123456789ABCDEF")
 RATE_WINDOW_SECONDS = 60
 _recent_scans: dict[int, deque[float]] = {}
 
@@ -35,23 +40,33 @@ def _today() -> date:
 
 
 def _aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _monitor(request: Request, db: Session) -> Monitor:
-    monitor_id = request.session.get("monitor_id")
-    if monitor_id is None:
+    """Resolve the monitor from the session, never from client input."""
+    try:
+        monitor_id = int(request.session.get("monitor_id"))
+    except (TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Please log in again.")
 
-    monitor = db.get(Monitor, int(monitor_id))
+    monitor = db.get(Monitor, monitor_id)
     if monitor is None:
         raise HTTPException(status_code=401, detail="Please log in again.")
-
     return monitor
 
 
-def _check_rate_limit(monitor: Monitor) -> None:
-    """Sliding-window limit for duty scans."""
+def _require_same_origin(request: Request) -> None:
+    """Defense in depth against cross-site form posts."""
+    origin = request.headers.get("origin")
+    if not origin:
+        return
+    expected = f"{request.url.scheme}://{request.url.netloc}"
+    if urlsplit(origin).geturl().rstrip("/") != expected.rstrip("/"):
+        raise HTTPException(status_code=403, detail="Cross-origin request rejected.")
+
+
+def _rate_limit(monitor: Monitor) -> None:
     limit = settings.duty_rate_limit_per_minute
     if limit <= 0:
         return
@@ -60,33 +75,29 @@ def _check_rate_limit(monitor: Monitor) -> None:
     window = _recent_scans.setdefault(monitor.id, deque())
     while window and now - window[0] >= RATE_WINDOW_SECONDS:
         window.popleft()
-
     if len(window) >= limit:
-        retry_after = max(1, int(RATE_WINDOW_SECONDS - (now - window[0])))
+        retry = max(1, int(RATE_WINDOW_SECONDS - (now - window[0])))
         raise HTTPException(
             status_code=429,
             detail="Too many scans. Try again shortly.",
-            headers={"Retry-After": str(retry_after)},
+            headers={"Retry-After": str(retry)},
         )
     window.append(now)
 
 
-def _normalize_rfid(raw: str) -> str | None:
-    """Uppercase hex only. Returns None when the value is not a valid UID."""
-    value = "".join(ch for ch in raw.upper() if ch.isalnum())
-    if not (MIN_RFID_LENGTH <= len(value) <= MAX_RFID_LENGTH):
+def _normalize_uid(raw: str) -> str | None:
+    """Uppercase hex only; ignore whitespace and separators from the reader."""
+    uid = "".join(char for char in raw.upper() if char.isalnum())
+    if not MIN_UID_LENGTH <= len(uid) <= MAX_UID_LENGTH:
         return None
-    if any(ch not in HEX_DIGITS for ch in value):
+    if any(char not in HEX_DIGITS for char in uid):
         return None
-    return value
+    return uid
 
 
-def _find_duty(db: Session, monitor: Monitor, uid: str) -> Duty | None:
+def _duty_by_uid(db: Session, monitor: Monitor, uid: str) -> Duty | None:
     duties = db.query(Duty).filter(Duty.school_id == monitor.school_id).all()
-    for duty in duties:
-        if _normalize_rfid(duty.rfid) == uid:
-            return duty
-    return None
+    return next((d for d in duties if _normalize_uid(d.rfid) == uid), None)
 
 
 def _person(duty: Duty) -> DutyPerson:
@@ -107,13 +118,6 @@ def _record_read(record: DutyRecord) -> DutyRecordRead:
     )
 
 
-def _latest_activity(record: DutyRecordRead) -> datetime:
-    """The most recent action on a record: time-out if present, else time-in."""
-    if record.time_out is None:
-        return _aware(record.time_in)
-    return max(_aware(record.time_in), _aware(record.time_out))
-
-
 def _today_records(db: Session, monitor: Monitor) -> list[DutyRecordRead]:
     rows = (
         db.query(DutyRecord)
@@ -126,20 +130,16 @@ def _today_records(db: Session, monitor: Monitor) -> list[DutyRecordRead]:
         .order_by(DutyRecord.time_in.desc())
         .all()
     )
-    records = [_record_read(record) for record in rows]
-    # Whoever scanned most recently is shown first.
-    records.sort(key=_latest_activity, reverse=True)
+    records = [_record_read(row) for row in rows]
+    records.sort(key=lambda r: _aware(r.time_out or r.time_in), reverse=True)
     return records
 
 
-def _today_events(records: list[DutyRecordRead]) -> list[DutyEvent]:
-    """Flatten today's records into newest-first sign-in/sign-out events."""
+def _events(records: list[DutyRecordRead]) -> list[DutyEvent]:
     events: list[DutyEvent] = []
     for record in records:
-        events.append(
-            DutyEvent(kind="time_in", at=record.time_in, person=record.person)
-        )
-        if record.time_out is not None:
+        events.append(DutyEvent(kind="time_in", at=record.time_in, person=record.person))
+        if record.time_out:
             events.append(
                 DutyEvent(kind="time_out", at=record.time_out, person=record.person)
             )
@@ -148,58 +148,41 @@ def _today_events(records: list[DutyRecordRead]) -> list[DutyEvent]:
 
 
 def _cooldown_message(remaining: timedelta) -> str:
-    total_seconds = max(0, int(remaining.total_seconds()))
-    minutes = total_seconds // 60
-    if total_seconds % 60:
-        minutes += 1
-    minutes = max(1, minutes)
+    minutes = max(1, int(remaining.total_seconds() + 59) // 60)
     return f"You can time out in {minutes} minute{'s' if minutes != 1 else ''}."
 
 
-def _scan(db: Session, monitor: Monitor, raw_rfid: str) -> DutyScanResult:
-    uid = _normalize_rfid(raw_rfid)
-    if uid is None:
-        return DutyScanResult(status="invalid", message="Invalid RFID card.")
-
-    duty = _find_duty(db, monitor, uid)
+def _record_scan(db: Session, monitor: Monitor, uid: str) -> DutyScanResult:
+    duty = _duty_by_uid(db, monitor, uid)
     if duty is None:
         return DutyScanResult(status="not_found", message="RFID card not registered.")
 
     person = _person(duty)
     today = _today()
+    now = datetime.now(timezone.utc)
     record = (
         db.query(DutyRecord)
         .filter(DutyRecord.duty_id == duty.id, DutyRecord.duty_date == today)
         .first()
     )
-    now = datetime.now(timezone.utc)
 
     if record is not None:
         if record.time_out is not None:
-            return DutyScanResult(
-                status="already_done",
-                message=f"{duty.fullname} already timed out today.",
-                person=person,
-                record=_record_read(record),
-                records=_today_records(db, monitor),
-            )
+            status, message = "already_done", f"{duty.fullname} already timed out today."
+        else:
+            elapsed = now - _aware(record.time_in)
+            if elapsed < TIME_OUT_COOLDOWN:
+                status = "cooldown"
+                message = _cooldown_message(TIME_OUT_COOLDOWN - elapsed)
+            else:
+                record.time_out = now
+                db.commit()
+                db.refresh(record)
+                status, message = "time_out", f"{duty.fullname} timed out."
 
-        elapsed = now - _aware(record.time_in)
-        if elapsed < TIME_OUT_COOLDOWN:
-            return DutyScanResult(
-                status="cooldown",
-                message=_cooldown_message(TIME_OUT_COOLDOWN - elapsed),
-                person=person,
-                record=_record_read(record),
-                records=_today_records(db, monitor),
-            )
-
-        record.time_out = now
-        db.commit()
-        db.refresh(record)
         return DutyScanResult(
-            status="time_out",
-            message=f"{duty.fullname} timed out.",
+            status=status,
+            message=message,
             person=person,
             record=_record_read(record),
             records=_today_records(db, monitor),
@@ -210,7 +193,7 @@ def _scan(db: Session, monitor: Monitor, raw_rfid: str) -> DutyScanResult:
     try:
         db.commit()
     except IntegrityError:
-        # Another request created today's record first; treat it as a duplicate.
+        # A concurrent scan already created today's record.
         db.rollback()
         existing = (
             db.query(DutyRecord)
@@ -235,12 +218,16 @@ def _scan(db: Session, monitor: Monitor, raw_rfid: str) -> DutyScanResult:
     )
 
 
+def _scan_response(db: Session, monitor: Monitor, raw_rfid: str) -> DutyScanResult:
+    """Validate a raw UID once, then run the shared scan logic."""
+    uid = _normalize_uid(raw_rfid)
+    if uid is None:
+        return DutyScanResult(status="invalid", message="Invalid RFID card.")
+    return _record_scan(db, monitor, uid)
+
+
 @router.get("/today", response_model=DutyToday)
-def get_today(
-    request: Request,
-    response: Response,
-    db: Session = Depends(get_db),
-):
+def get_today(request: Request, response: Response, db: Session = Depends(get_db)):
     monitor = _monitor(request, db)
     records = _today_records(db, monitor)
     response.headers["Cache-Control"] = "no-store"
@@ -248,7 +235,7 @@ def get_today(
         date=_today().isoformat(),
         count=len(records),
         records=records,
-        events=_today_events(records),
+        events=_events(records),
     )
 
 
@@ -259,9 +246,12 @@ def scan(
     form: Annotated[DutyScan, Form()],
     db: Session = Depends(get_db),
 ):
-    """Record a duty scan from the logged-in monitor's browser session."""
+    """One tap: record time-in or time-out for the matching duty member."""
+    _require_same_origin(request)
     monitor = _monitor(request, db)
-    _check_rate_limit(monitor)
-    result = _scan(db, monitor, form.rfid)
+    _rate_limit(monitor)
+    result = _scan_response(db, monitor, form.rfid)
     response.headers["Cache-Control"] = "no-store"
     return result
+
+

@@ -1,0 +1,50 @@
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 24px;
+    color: #222;
+}
+
+nav a {
+    margin-right: 16px;
+}
+
+.duty-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.duty-header img {
+    height: 48px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+/* RFID Scanner */
+.scanner {
+    margin: 20px 0;
+}
+
+/* RFID Input */
+#rfidInput {
+    padding: 8px;
+}
+
+/* Attendance Table */
+table.duty-table {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 900px;
+}
+
+/* Profile Photo */
+.duty-photo {
+    width: 45px;
+    height: 45px;
+    object-fit: cover;
+    border-radius: 4px;
+    display: block;
+}

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 
 class DutyPerson(BaseModel):
+    """Duty member shown on the board."""
 
     fullname: str
     course: str
@@ -13,24 +14,25 @@ class DutyPerson(BaseModel):
 
 
 class DutyRecordRead(BaseModel):
+    """One duty record with the member and their times."""
+
     id: int
     person: DutyPerson
     time_in: datetime
     time_out: datetime | None = None
 
 
-DutyEventKind = Literal["time_in", "time_out"]
-
-
 class DutyEvent(BaseModel):
-    """A single sign-in or sign-out from today's duty log."""
+    """A time-in or time-out event."""
 
-    kind: DutyEventKind
+    kind: Literal["time_in", "time_out"]
     at: datetime
     person: DutyPerson
 
 
 class DutyToday(BaseModel):
+    """Response for GET /api/duty/today."""
+
     date: str
     count: int
     records: list[DutyRecordRead]
@@ -38,17 +40,16 @@ class DutyToday(BaseModel):
 
 
 class DutyScan(BaseModel):
+    """Raw card UID typed by the reader."""
+
     rfid: str
 
 
 class DutyScanResult(BaseModel):
+    """Response for POST /api/duty/scan."""
+
     status: Literal[
-        "time_in",
-        "time_out",
-        "cooldown",
-        "already_done",
-        "not_found",
-        "invalid",
+        "time_in", "time_out", "cooldown", "already_done", "not_found", "invalid"
     ]
     message: str
     person: DutyPerson | None = None

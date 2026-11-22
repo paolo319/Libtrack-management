@@ -16,3 +16,4 @@ class Admin(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text('now()'))
 
     school: Mapped[School] = relationship("School", back_populates="admins")
+

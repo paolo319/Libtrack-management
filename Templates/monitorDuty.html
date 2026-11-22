@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duty Monitor</title>
+    <link rel="stylesheet" href="../static/css/duty.css">
 </head>
 <body>
 
@@ -12,18 +13,12 @@
         <a href="/dutyDashboard">Duty</a>
     </nav>
 
-    <div style="display: flex; align-items: center; gap: 16px; margin-top: 16px;">
+    <div class="duty-header">
         {% if school_logo %}
             <img
                 src="{{ school_logo }}"
                 alt="{{ school }}"
                 onerror="this.onerror=null; this.src='/static/logos/default.svg'"
-                style="
-                    height: 48px;
-                    width: auto;
-                    max-width: 100%;
-                    object-fit: contain;
-                "
             >
         {% endif %}
         <div>
@@ -42,7 +37,7 @@
 
     <h2>Duty Today (<span id="count">0</span>)</h2>
 
-    <table border="1" cellpadding="8" cellspacing="0">
+    <table class="duty-table">
         <thead>
             <tr>
                 <th>Profile</th>
@@ -58,7 +53,7 @@
 
     <p id="status"></p>
 
-    <script src="/static/dutyScanner.js?v=2"></script>
+    <script src="/static/dutyScanner.js?v=5"></script>
 
 </body>
 </html>
